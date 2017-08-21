@@ -17,17 +17,19 @@
 package securesocial.core
 
 import _root_.java.util.UUID
+
 import play.api.libs.oauth._
 import play.api.mvc.{ AnyContent, Request }
 import play.api.mvc.Results.Redirect
-import oauth.signpost.exception.OAuthException
+
 import scala.concurrent.{ ExecutionContext, Future }
-import securesocial.core.services.{ HttpService, RoutesService, CacheService }
+import securesocial.core.services.{ CacheService, HttpService, RoutesService }
 import play.api.libs.oauth.OAuth
 import play.api.libs.oauth.ServiceInfo
 import play.api.libs.oauth.RequestToken
 import play.api.libs.oauth.ConsumerKey
 import play.api.libs.json.JsValue
+import play.shaded.oauth.oauth.signpost.exception.OAuthException
 
 /**
  * A trait that allows mocking the OAuth 1 client
@@ -84,10 +86,10 @@ object ServiceInfoHelper {
    */
   def forProvider(id: String): ServiceInfo = {
     val result = for {
-      requestTokenUrl <- loadProperty(id, OAuth1Provider.RequestTokenUrl);
-      accessTokenUrl <- loadProperty(id, OAuth1Provider.AccessTokenUrl);
-      authorizationUrl <- loadProperty(id, OAuth1Provider.AuthorizationUrl);
-      consumerKey <- loadProperty(id, OAuth1Provider.ConsumerKey);
+      requestTokenUrl <- loadProperty(id, OAuth1Provider.RequestTokenUrl)
+      accessTokenUrl <- loadProperty(id, OAuth1Provider.AccessTokenUrl)
+      authorizationUrl <- loadProperty(id, OAuth1Provider.AuthorizationUrl)
+      consumerKey <- loadProperty(id, OAuth1Provider.ConsumerKey)
       consumerSecret <- loadProperty(id, OAuth1Provider.ConsumerSecret)
     } yield {
       ServiceInfo(requestTokenUrl, accessTokenUrl, authorizationUrl, ConsumerKey(consumerKey, consumerSecret))
@@ -107,9 +109,8 @@ object ServiceInfoHelper {
 abstract class OAuth1Provider(
   routesService: RoutesService,
   cacheService: CacheService,
-  val client: OAuth1Client
-)
-    extends IdentityProvider {
+  val client: OAuth1Client)
+  extends IdentityProvider {
 
   protected implicit val executionContext = client.executionContext
   protected val logger = play.api.Logger(this.getClass.getName)
@@ -154,8 +155,7 @@ abstract class OAuth1Provider(
               throw new AuthenticationException()
           };
           accessToken <- client.retrieveOAuth1Info(
-            RequestToken(requestToken.get.token, requestToken.get.secret), verifier.get
-          ).recover {
+            RequestToken(requestToken.get.token, requestToken.get.secret), verifier.get).recover {
               case e =>
                 logger.error("[securesocial] error retrieving access token", e)
                 throw new AuthenticationException()

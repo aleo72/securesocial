@@ -18,14 +18,12 @@ package securesocial.controllers
 
 import javax.inject.Inject
 
-import play.api.Configuration
 import play.api.data.Forms._
 import play.api.data._
-import play.api.i18n.{ Messages, MessagesApi }
+import play.api.i18n.Messages
 import play.filters.csrf._
-import play.api.mvc.Action
 import securesocial.core._
-import securesocial.core.authenticator.CookieAuthenticator
+import securesocial.core.authenticator.CookieAuthenticatorConfig
 import securesocial.core.providers.UsernamePasswordProvider
 import securesocial.core.providers.utils._
 import securesocial.core.services.SaveMode
@@ -40,8 +38,8 @@ import scala.concurrent.{ Await, Future }
 class Registration @Inject() (
   override implicit val env: RuntimeEnvironment,
   val csrfAddToken: CSRFAddToken,
-  val csrfCheck: CSRFCheck
-) extends BaseRegistration
+  val csrfCheck: CSRFCheck,
+  val cookieAuthenticatorConfig: CookieAuthenticatorConfig) extends BaseRegistration
 
 /**
  * A trait that provides the means to handle user registration
@@ -55,11 +53,13 @@ trait BaseRegistration extends MailTokenBasedOperations {
 
   val providerId = UsernamePasswordProvider.UsernamePassword
 
+  val cookieAuthenticatorConfig: CookieAuthenticatorConfig
+
   val UserName = "userName"
   val FirstName = "firstName"
   val LastName = "lastName"
 
-  val formWithUsername = Form[RegistrationInfo](
+  def formWithUsername()(implicit messages: Messages): Form[RegistrationInfo] = Form[RegistrationInfo](
     mapping(
       UserName -> nonEmptyText.verifying(Messages(UserNameAlreadyTaken), userName => {
         // todo: see if there's a way to avoid waiting here :-\
@@ -71,28 +71,22 @@ trait BaseRegistration extends MailTokenBasedOperations {
       Password ->
         tuple(
           Password1 -> nonEmptyText.verifying(PasswordValidator.constraint),
-          Password2 -> nonEmptyText
-        ).verifying(Messages(PasswordsDoNotMatch), passwords => passwords._1 == passwords._2)
-    ) // binding
-    ((userName, firstName, lastName, password) => RegistrationInfo(Some(userName), firstName, lastName, password._1)) // unbinding
-    (info => Some((info.userName.getOrElse(""), info.firstName, info.lastName, ("", ""))))
-  )
+          Password2 -> nonEmptyText).verifying(messages(PasswordsDoNotMatch), passwords => passwords._1 == passwords._2)) // binding
+          ((userName, firstName, lastName, password) => RegistrationInfo(Some(userName), firstName, lastName, password._1)) // unbinding
+          (info => Some((info.userName.getOrElse(""), info.firstName, info.lastName, ("", "")))))
 
-  val formWithoutUsername = Form[RegistrationInfo](
+  def formWithoutUsername()(implicit messages: Messages): Form[RegistrationInfo] = Form[RegistrationInfo](
     mapping(
       FirstName -> nonEmptyText,
       LastName -> nonEmptyText,
       Password ->
         tuple(
           Password1 -> nonEmptyText.verifying(PasswordValidator.constraint),
-          Password2 -> nonEmptyText
-        ).verifying(Messages(PasswordsDoNotMatch), passwords => passwords._1 == passwords._2)
-    ) // binding
-    ((firstName, lastName, password) => RegistrationInfo(None, firstName, lastName, password._1)) // unbinding
-    (info => Some((info.firstName, info.lastName, ("", ""))))
-  )
+          Password2 -> nonEmptyText).verifying(messages(PasswordsDoNotMatch), passwords => passwords._1 == passwords._2)) // binding
+          ((firstName, lastName, password) => RegistrationInfo(None, firstName, lastName, password._1)) // unbinding
+          (info => Some((info.firstName, info.lastName, ("", "")))))
 
-  val form = if (UsernamePasswordProvider.withUserNameSupport) formWithUsername else formWithoutUsername
+  def form(implicit messages: Messages): Form[RegistrationInfo] = if (UsernamePasswordProvider.withUserNameSupport) formWithUsername else formWithoutUsername
 
   val csrfAddToken: CSRFAddToken
   val csrfCheck: CSRFCheck
@@ -135,8 +129,7 @@ trait BaseRegistration extends MailTokenBasedOperations {
                 }
                 handleStartResult().flashing(Success -> Messages(ThankYouCheckEmail), Email -> email)
             }
-          }
-        )
+          })
     }
   }
 
@@ -179,8 +172,7 @@ trait BaseRegistration extends MailTokenBasedOperations {
                   Some(t.email),
                   None,
                   AuthenticationMethod.UserPassword,
-                  passwordInfo = Some(env.currentHasher.hash(info.password))
-                )
+                  passwordInfo = Some(env.currentHasher.hash(info.password)))
 
                 val withAvatar = env.avatarService.map {
                   _.urlFor(t.email).map { url =>
@@ -198,7 +190,7 @@ trait BaseRegistration extends MailTokenBasedOperations {
                     env.mailer.sendWelcomeEmail(newUser)
                   val eventSession = Events.fire(new SignUpEvent(saved)).getOrElse(request.session)
                   if (UsernamePasswordProvider.signupSkipLogin) {
-                    env.authenticatorService.find(CookieAuthenticator.Id).map {
+                    env.authenticatorService.find(cookieAuthenticatorConfig.Id).map {
                       _.fromUser(saved).flatMap { authenticator =>
                         confirmationResult()
                           .flashing(Success -> Messages(SignUpDone))
@@ -214,8 +206,7 @@ trait BaseRegistration extends MailTokenBasedOperations {
                   }
                 }
                 result.flatMap(f => f)
-              }
-            )
+              })
         })
     }
   }

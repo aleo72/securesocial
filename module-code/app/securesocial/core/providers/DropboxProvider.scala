@@ -18,7 +18,7 @@
  */
 package securesocial.core.providers
 
-import play.api.libs.ws.WS
+import play.api.libs.ws.WSClient
 import securesocial.core._
 import securesocial.core.providers.DropboxProvider._
 import securesocial.core.services.{ CacheService, RoutesService }
@@ -31,17 +31,16 @@ import scala.concurrent.Future
 class DropboxProvider(
   routesService: RoutesService,
   cacheService: CacheService,
-  client: OAuth2Client
-)
-    extends OAuth2Provider(routesService, client, cacheService) {
+  client: OAuth2Client,
+  ws: WSClient)
+  extends OAuth2Provider(routesService, client, cacheService) {
   private val Logger = play.api.Logger("securesocial.core.providers.DropboxProvider")
   override val id = DropboxProvider.Dropbox
 
   override def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
-    import play.api.Play.current
 
     val accessToken = info.accessToken
-    WS.url(DropboxProvider.Api).withHeaders("Authorization" -> s"Bearer $accessToken").get().map { response =>
+    ws.url(DropboxProvider.Api).withHeaders("Authorization" -> s"Bearer $accessToken").get().map { response =>
       response.status match {
         case 200 =>
           val data = response.json

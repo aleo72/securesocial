@@ -20,6 +20,7 @@ import org.joda.time.DateTime
 import play.api.Play.current
 import play.api.data.Form
 import play.api.data.Forms._
+import play.api.i18n.I18nSupport
 import play.api.mvc._
 import securesocial.controllers.ViewTemplates
 import securesocial.core.AuthenticationResult.{ Authenticated, NavigationFlow }
@@ -36,9 +37,9 @@ class UsernamePasswordProvider[U](
   userService: UserService[U],
   avatarService: Option[AvatarService],
   viewTemplates: ViewTemplates,
-  passwordHashers: Map[String, PasswordHasher]
-)(implicit val executionContext: ExecutionContext)
-    extends IdentityProvider with ApiSupport with Controller {
+  passwordHashers: Map[String, PasswordHasher],
+  protected override val controllerComponents: ControllerComponents)(implicit val executionContext: ExecutionContext)
+  extends IdentityProvider with ApiSupport with BaseController with I18nSupport {
 
   override val id = UsernamePasswordProvider.UsernamePassword
 
@@ -100,8 +101,7 @@ class UsernamePasswordProvider[U](
           case Some(profile) => withUpdatedAvatar(profile).map(Authenticated)
           case None => authenticationFailedResult(apiMode)
         }
-      }
-    )
+      })
   }
 
   private def badRequest[A](f: Form[(String, String)], msg: Option[String] = None)(implicit request: Request[A]): Result = {
@@ -120,9 +120,7 @@ object UsernamePasswordProvider {
   val loginForm = Form(
     tuple(
       "username" -> nonEmptyText,
-      "password" -> nonEmptyText
-    )
-  )
+      "password" -> nonEmptyText))
 
   lazy val withUserNameSupport = current.configuration.getBoolean(Key).getOrElse(false)
   lazy val sendWelcomeEmail = current.configuration.getBoolean(SendWelcomeEmailKey).getOrElse(true)

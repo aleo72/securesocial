@@ -16,11 +16,14 @@
  */
 package securesocial.core.authenticator
 
+import javax.inject.{ Inject, Singleton }
+
 import org.joda.time.DateTime
-import play.api.mvc.{ Cookie, Result, DiscardingCookie, RequestHeader }
+import play.api.mvc.{ Cookie, DiscardingCookie, RequestHeader, Result }
+import play.api.{ Configuration, Environment }
 import securesocial.core.IdentityProvider
-import scala.concurrent.{ ExecutionContext, Future }
-import play.api.Play
+
+import scala.concurrent.Future
 
 /**
  * A Cookie based authenticator. This authenticator puts an id an a cookie that is then used to track authenticated
@@ -41,14 +44,15 @@ import play.api.Play
 case class CookieAuthenticator[U](id: String, user: U, expirationDate: DateTime,
   lastUsed: DateTime,
   creationDate: DateTime,
-  @transient store: AuthenticatorStore[CookieAuthenticator[U]])
-    extends StoreBackedAuthenticator[U, CookieAuthenticator[U]] {
+  @transient store: AuthenticatorStore[CookieAuthenticator[U]],
+  cookieAuthenticatorConfig: CookieAuthenticatorConfig)
+  extends StoreBackedAuthenticator[U, CookieAuthenticator[U]] {
 
   @transient
-  override val idleTimeoutInMinutes = CookieAuthenticator.idleTimeout
+  override val idleTimeoutInMinutes: Int = cookieAuthenticatorConfig.idleTimeout
 
   @transient
-  override val absoluteTimeoutInSeconds = CookieAuthenticator.absoluteTimeoutInSeconds
+  override val absoluteTimeoutInSeconds: Int = cookieAuthenticatorConfig.absoluteTimeoutInSeconds
 
   /**
    * Returns a copy of this authenticator with the given last used time
@@ -75,7 +79,7 @@ case class CookieAuthenticator[U](id: String, user: U, expirationDate: DateTime,
    */
   override def discarding(result: Result): Future[Result] = {
     store.delete(id).map { _ =>
-      result.discardingCookies(CookieAuthenticator.discardingCookie)
+      result.discardingCookies(cookieAuthenticatorConfig.discardingCookie)
     }
   }
 
@@ -89,17 +93,15 @@ case class CookieAuthenticator[U](id: String, user: U, expirationDate: DateTime,
     Future.successful {
       result.withCookies(
         Cookie(
-          CookieAuthenticator.cookieName,
+          cookieAuthenticatorConfig.cookieName,
           id,
-          if (CookieAuthenticator.makeTransient)
-            CookieAuthenticator.Transient
-          else Some(CookieAuthenticator.absoluteTimeoutInSeconds),
-          CookieAuthenticator.cookiePath,
-          CookieAuthenticator.cookieDomain,
-          secure = CookieAuthenticator.cookieSecure,
-          httpOnly = CookieAuthenticator.cookieHttpOnly
-        )
-      )
+          if (cookieAuthenticatorConfig.makeTransient)
+            cookieAuthenticatorConfig.Transient
+          else Some(cookieAuthenticatorConfig.absoluteTimeoutInSeconds),
+          cookieAuthenticatorConfig.cookiePath,
+          cookieAuthenticatorConfig.cookieDomain,
+          secure = cookieAuthenticatorConfig.cookieSecure,
+          httpOnly = cookieAuthenticatorConfig.cookieHttpOnly))
     }
   }
 
@@ -111,11 +113,10 @@ case class CookieAuthenticator[U](id: String, user: U, expirationDate: DateTime,
   override def discarding(javaContext: play.mvc.Http.Context): Future[Unit] = {
     store.delete(id).map { _ =>
       javaContext.response().discardCookie(
-        CookieAuthenticator.cookieName,
-        CookieAuthenticator.cookiePath,
-        CookieAuthenticator.cookieDomain.getOrElse(null),
-        CookieAuthenticator.cookieSecure
-      )
+        cookieAuthenticatorConfig.cookieName,
+        cookieAuthenticatorConfig.cookiePath,
+        cookieAuthenticatorConfig.cookieDomain.orNull,
+        cookieAuthenticatorConfig.cookieSecure)
     }
   }
 }
@@ -127,9 +128,9 @@ case class CookieAuthenticator[U](id: String, user: U, expirationDate: DateTime,
  * @param generator a session id generator
  * @tparam U the user object type
  */
-class CookieAuthenticatorBuilder[U](store: AuthenticatorStore[CookieAuthenticator[U]], generator: IdGenerator) extends AuthenticatorBuilder[U] {
+class CookieAuthenticatorBuilder[U](store: AuthenticatorStore[CookieAuthenticator[U]], generator: IdGenerator, cookieAuthenticatorConfig: CookieAuthenticatorConfig) extends AuthenticatorBuilder[U] {
   import store.executionContext
-  val id = CookieAuthenticator.Id
+  val id = cookieAuthenticatorConfig.Id
 
   /**
    * Creates an instance of a CookieAuthenticator from the http request
@@ -138,7 +139,7 @@ class CookieAuthenticatorBuilder[U](store: AuthenticatorStore[CookieAuthenticato
    * @return an optional CookieAuthenticator instance.
    */
   override def fromRequest(request: RequestHeader): Future[Option[CookieAuthenticator[U]]] = {
-    request.cookies.get(CookieAuthenticator.cookieName) match {
+    request.cookies.get(cookieAuthenticatorConfig.cookieName) match {
       case Some(cookie) => store.find(cookie.value).map { retrieved =>
         retrieved.map { _.copy(store = store) }
       }
@@ -156,15 +157,15 @@ class CookieAuthenticatorBuilder[U](store: AuthenticatorStore[CookieAuthenticato
     generator.generate.flatMap {
       id =>
         val now = DateTime.now()
-        val expirationDate = now.plusMinutes(CookieAuthenticator.absoluteTimeout)
-        val authenticator = CookieAuthenticator(id, user, expirationDate, now, now, store)
-        store.save(authenticator, CookieAuthenticator.absoluteTimeoutInSeconds)
+        val expirationDate = now.plusMinutes(cookieAuthenticatorConfig.absoluteTimeout)
+        val authenticator = CookieAuthenticator(id, user, expirationDate, now, now, store, cookieAuthenticatorConfig)
+        store.save(authenticator, cookieAuthenticatorConfig.absoluteTimeoutInSeconds)
     }
   }
 }
 
-object CookieAuthenticator {
-  import play.api.Play.current
+@Singleton
+class CookieAuthenticatorConfig @Inject() (configuration: Configuration, env: Environment) {
   // todo: create settings object
 
   val Id = "cookie"
@@ -187,17 +188,16 @@ object CookieAuthenticator {
   val DefaultIdleTimeout = 30
   val DefaultAbsoluteTimeout = 12 * 60
 
-  lazy val cookieName = Play.application.configuration.getString(CookieNameKey).getOrElse(DefaultCookieName)
-  lazy val cookiePath = Play.application.configuration.getString(CookiePathKey).getOrElse(
-    Play.configuration.getString(ApplicationContext).getOrElse(DefaultCookiePath)
-  )
-  lazy val cookieDomain = Play.application.configuration.getString(CookieDomainKey)
-  lazy val cookieSecure = IdentityProvider.sslEnabled
-  lazy val cookieHttpOnly = Play.application.configuration.getBoolean(CookieHttpOnlyKey).getOrElse(DefaultCookieHttpOnly)
-  lazy val idleTimeout = Play.application.configuration.getInt(IdleTimeoutKey).getOrElse(DefaultIdleTimeout)
-  lazy val absoluteTimeout = Play.application.configuration.getInt(AbsoluteTimeoutKey).getOrElse(DefaultAbsoluteTimeout)
+  lazy val cookieName = configuration.getOptional[String](CookieNameKey).getOrElse(DefaultCookieName)
+  lazy val cookiePath = configuration.getOptional[String](CookiePathKey).getOrElse(
+    configuration.getOptional[String](ApplicationContext).getOrElse(DefaultCookiePath))
+  lazy val cookieDomain = configuration.getOptional[String](CookieDomainKey)
+  lazy val cookieSecure = IdentityProvider.sslEnabled(env, configuration)
+  lazy val cookieHttpOnly = configuration.getOptional[Boolean](CookieHttpOnlyKey).getOrElse(DefaultCookieHttpOnly)
+  lazy val idleTimeout = configuration.getOptional[Int](IdleTimeoutKey).getOrElse(DefaultIdleTimeout)
+  lazy val absoluteTimeout = configuration.getOptional[Int](AbsoluteTimeoutKey).getOrElse(DefaultAbsoluteTimeout)
   lazy val absoluteTimeoutInSeconds = absoluteTimeout * 60
-  lazy val makeTransient = Play.application.configuration.getBoolean(TransientKey).getOrElse(true)
+  lazy val makeTransient = configuration.getOptional[Boolean](TransientKey).getOrElse(true)
 
   val discardingCookie: DiscardingCookie = {
     DiscardingCookie(cookieName, cookiePath, cookieDomain, cookieSecure)

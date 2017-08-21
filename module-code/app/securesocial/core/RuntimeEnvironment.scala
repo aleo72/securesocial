@@ -1,9 +1,10 @@
 package securesocial.core
 
-import play.api.Configuration
-import play.api.i18n.MessagesApi
+import akka.actor.ActorSystem
+import play.api.cache.AsyncCacheApi
+import play.api.{ Configuration, Environment }
 import securesocial.controllers.{ MailTemplates, ViewTemplates }
-import securesocial.core.authenticator._
+import securesocial.core.authenticator.{ CookieAuthenticatorConfig, _ }
 import securesocial.core.providers._
 import securesocial.core.providers.utils.{ Mailer, PasswordHasher, PasswordValidator }
 import securesocial.core.services._
@@ -11,6 +12,9 @@ import securesocial.core.services._
 import scala.concurrent.ExecutionContext
 import scala.collection.immutable.ListMap
 import play.api.libs.concurrent.{ Execution => PlayExecution }
+import play.api.libs.mailer.MailerClient
+import play.api.libs.ws.WSClient
+import play.api.mvc.ControllerComponents
 /**
  * A runtime environment where the services needed are available
  */
@@ -46,7 +50,18 @@ trait RuntimeEnvironment {
 
   def configuration: Configuration
 
-  def messagesApi: MessagesApi
+  def env: Environment
+
+  def ws: WSClient
+
+  def controllerComponents: ControllerComponents
+
+  val mailerClient: MailerClient
+
+  val actorSystem: ActorSystem
+
+  val cacheApi: AsyncCacheApi
+
 }
 
 object RuntimeEnvironment {
@@ -60,25 +75,23 @@ object RuntimeEnvironment {
 
     override lazy val viewTemplates: ViewTemplates = new ViewTemplates.Default(this)(configuration)
     override lazy val mailTemplates: MailTemplates = new MailTemplates.Default(this)
-    override lazy val mailer: Mailer = new Mailer.Default(mailTemplates)
+    override lazy val mailer: Mailer = new Mailer.Default(mailTemplates, mailerClient, configuration, actorSystem)
 
     override lazy val currentHasher: PasswordHasher = new PasswordHasher.Default()
     override lazy val passwordHashers: Map[String, PasswordHasher] = Map(currentHasher.id -> currentHasher)
     override lazy val passwordValidator: PasswordValidator = new PasswordValidator.Default()
 
-    override lazy val httpService: HttpService = new HttpService.Default
-    override lazy val cacheService: CacheService = new CacheService.Default
+    override lazy val httpService: HttpService = new HttpService.Default(ws)
+    override lazy val cacheService: CacheService = new CacheService.Default(executionContext, cacheApi)
     override lazy val avatarService: Option[AvatarService] = Some(new AvatarService.Default(httpService))
     override lazy val idGenerator: IdGenerator = new IdGenerator.Default()
 
     override lazy val authenticatorService = new AuthenticatorService(
-      new CookieAuthenticatorBuilder[U](new AuthenticatorStore.Default(cacheService), idGenerator),
-      new HttpHeaderAuthenticatorBuilder[U](new AuthenticatorStore.Default(cacheService), idGenerator)
-    )
+      new CookieAuthenticatorBuilder[U](new AuthenticatorStore.Default(cacheService), idGenerator, new CookieAuthenticatorConfig(configuration, env)),
+      new HttpHeaderAuthenticatorBuilder[U](new AuthenticatorStore.Default(cacheService), idGenerator, new HttpHeaderAuthenticatorConfig(configuration, new CookieAuthenticatorConfig(configuration, env))))
 
     override lazy val eventListeners: Seq[EventListener] = Seq()
-    override implicit def executionContext: ExecutionContext =
-      PlayExecution.defaultContext
+    override implicit def executionContext: ExecutionContext = PlayExecution.defaultContext
 
     protected def include(p: IdentityProvider) = p.id -> p
     protected def oauth1ClientFor(provider: String) = new OAuth1Client.Default(ServiceInfoHelper.forProvider(provider), httpService)
@@ -95,8 +108,8 @@ object RuntimeEnvironment {
       include(new SoundcloudProvider(routes, cacheService, oauth2ClientFor(SoundcloudProvider.Soundcloud))),
       include(new LinkedInOAuth2Provider(routes, cacheService, oauth2ClientFor(LinkedInOAuth2Provider.LinkedIn))),
       include(new VkProvider(routes, cacheService, oauth2ClientFor(VkProvider.Vk))),
-      include(new DropboxProvider(routes, cacheService, oauth2ClientFor(DropboxProvider.Dropbox))),
-      include(new WeiboProvider(routes, cacheService, oauth2ClientFor(WeiboProvider.Weibo))),
+      include(new DropboxProvider(routes, cacheService, oauth2ClientFor(DropboxProvider.Dropbox), ws)),
+      include(new WeiboProvider(routes, cacheService, oauth2ClientFor(WeiboProvider.Weibo), ws)),
       include(new ConcurProvider(routes, cacheService, oauth2ClientFor(ConcurProvider.Concur))),
       include(new SpotifyProvider(routes, cacheService, oauth2ClientFor(SpotifyProvider.Spotify))),
       include(new SlackProvider(routes, cacheService, oauth2ClientFor(SlackProvider.Slack))),
@@ -105,7 +118,6 @@ object RuntimeEnvironment {
       include(new TwitterProvider(routes, cacheService, oauth1ClientFor(TwitterProvider.Twitter))),
       include(new XingProvider(routes, cacheService, oauth1ClientFor(XingProvider.Xing))),
       // username password
-      include(new UsernamePasswordProvider[U](userService, avatarService, viewTemplates, passwordHashers))
-    )
+      include(new UsernamePasswordProvider[U](userService, avatarService, viewTemplates, passwordHashers, controllerComponents)))
   }
 }

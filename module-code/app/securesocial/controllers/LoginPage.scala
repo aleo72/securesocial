@@ -18,13 +18,14 @@ package securesocial.controllers
 
 import javax.inject.Inject
 
-import securesocial.core._
-import securesocial.core.utils._
-import play.api.{ Configuration, Play }
-import providers.UsernamePasswordProvider
-
-import scala.concurrent.{ ExecutionContext, Future }
+import play.api.Configuration
+import play.api.i18n.I18nSupport
 import play.filters.csrf.CSRFAddToken
+import securesocial.core._
+import securesocial.core.providers.UsernamePasswordProvider
+import securesocial.core.utils._
+
+import scala.concurrent.Future
 
 /**
  * A default Login controller that uses BasicProfile as the user type.
@@ -36,7 +37,7 @@ class LoginPage @Inject() (override implicit val env: RuntimeEnvironment, val cs
 /**
  * The trait that defines the login page controller
  */
-trait BaseLoginPage extends SecureSocial {
+trait BaseLoginPage extends SecureSocial with I18nSupport {
   private val logger = play.api.Logger("securesocial.controllers.LoginPage")
 
   /**

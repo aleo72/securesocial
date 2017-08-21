@@ -16,8 +16,11 @@
  */
 package securesocial.core.authenticator
 
+import akka.Done
+
 import scala.concurrent.{ ExecutionContext, Future }
 import securesocial.core.services.CacheService
+
 import scala.reflect.ClassTag
 
 /**
@@ -50,7 +53,7 @@ abstract class AuthenticatorStore[A <: Authenticator[_]](implicit val executionC
    * @param id the authenticator id
    * @return a future of Unit
    */
-  def delete(id: String): Future[Unit]
+  def delete(id: String): Future[Done]
 }
 
 object AuthenticatorStore {
@@ -61,7 +64,7 @@ object AuthenticatorStore {
    * @tparam A the Authenticator type
    */
   class Default[A <: Authenticator[_]](cacheService: CacheService)(implicit executionContext: ExecutionContext)
-      extends AuthenticatorStore[A] {
+    extends AuthenticatorStore[A] {
 
     /**
      * Retrieves an Authenticator from the cache
@@ -91,7 +94,7 @@ object AuthenticatorStore {
      * @param id the authenticator id
      * @return a future of Unit
      */
-    override def delete(id: String): Future[Unit] = {
+    override def delete(id: String): Future[Done] = {
       cacheService.remove(id)
     }
   }

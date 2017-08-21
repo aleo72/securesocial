@@ -111,10 +111,10 @@ object RoutesService {
     val DefaultBootstrapCssPath = "bootstrap/css/bootstrap.min.css"
     val ApplicationHostKey = "securesocial.applicationHost"
     val ApplicationPortKey = "securesocial.applicationPort"
-    private lazy val applicationHost = configuration.getString(ApplicationHostKey).getOrElse {
+    private lazy val applicationHost = configuration.getOptional[String](ApplicationHostKey).getOrElse {
       throw new RuntimeException(s"Missing property: $ApplicationHostKey")
     }
-    private lazy val applicationPort = configuration.getInt(ApplicationPortKey).map(port => s":$port").getOrElse("")
+    private lazy val applicationPort = configuration.getOptional[Int](ApplicationPortKey).map(port => s":$port").getOrElse("")
     private lazy val hostAndPort = s"$applicationHost$applicationPort"
 
     protected def absoluteUrl(call: Call)(implicit req: RequestHeader): String = {

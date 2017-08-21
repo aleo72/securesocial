@@ -18,17 +18,17 @@ package securesocial.controllers
 
 import javax.inject.Inject
 
-import securesocial.core._
-import securesocial.core.SecureSocial._
-import play.api.mvc.Result
-import play.api.{ Configuration, Play }
+import play.api.Configuration
 import play.api.data.Form
 import play.api.data.Forms._
+import play.api.i18n.{ I18nSupport, Messages }
+import play.api.mvc.Result
+import play.filters.csrf._
+import securesocial.core.SecureSocial._
+import securesocial.core._
 import securesocial.core.providers.utils.PasswordValidator
-import play.api.i18n.{ I18nSupport, Messages, MessagesApi }
 
 import scala.concurrent.{ Await, Future }
-import play.filters.csrf._
 
 /**
  * A default PasswordChange controller that uses the BasicProfile as the user type
@@ -38,8 +38,7 @@ import play.filters.csrf._
 class PasswordChange @Inject() (
   override implicit val env: RuntimeEnvironment,
   val csrfAddToken: CSRFAddToken,
-  val csrfCheck: CSRFCheck
-) extends BasePasswordChange
+  val csrfCheck: CSRFCheck) extends BasePasswordChange
 
 /**
  * A trait that defines the password change functionality
@@ -58,7 +57,6 @@ trait BasePasswordChange extends SecureSocial with I18nSupport {
   val csrfAddToken: CSRFAddToken
   val csrfCheck: CSRFCheck
   val configuration: Configuration = env.configuration
-  implicit val messagesApi: MessagesApi = env.messagesApi
 
   /**
    * The property that specifies the page the user is redirected to after changing the password.
@@ -67,8 +65,7 @@ trait BasePasswordChange extends SecureSocial with I18nSupport {
 
   /** The redirect target of the handlePasswordChange action. */
   def onHandlePasswordChangeGoTo = configuration.getString(onPasswordChangeGoTo).getOrElse(
-    securesocial.controllers.routes.PasswordChange.page().url
-  )
+    securesocial.controllers.routes.PasswordChange.page().url)
 
   /**
    * checks if the supplied password matches the stored one
@@ -98,11 +95,7 @@ trait BasePasswordChange extends SecureSocial with I18nSupport {
         NewPassword ->
           tuple(
             Password1 -> nonEmptyText.verifying(PasswordValidator.constraint),
-            Password2 -> nonEmptyText
-          ).verifying(Messages(BaseRegistration.PasswordsDoNotMatch), passwords => passwords._1 == passwords._2)
-
-      )((currentPassword, newPassword) => ChangeInfo(currentPassword, newPassword._1))((changeInfo: ChangeInfo) => Some(("", ("", ""))))
-    )
+            Password2 -> nonEmptyText).verifying(Messages(BaseRegistration.PasswordsDoNotMatch), passwords => passwords._1 == passwords._2))((currentPassword, newPassword) => ChangeInfo(currentPassword, newPassword._1))((changeInfo: ChangeInfo) => Some(("", ("", "")))))
 
     env.userService.passwordInfoFor(request.user).flatMap {
       case Some(info) =>
@@ -139,17 +132,15 @@ trait BasePasswordChange extends SecureSocial with I18nSupport {
           errors => Future.successful(BadRequest(env.viewTemplates.getPasswordChangePage(errors))),
           info => {
             val newPasswordInfo = env.currentHasher.hash(info.newPassword)
-            val userLang = request2lang(request)
             env.userService.updatePasswordInfo(request.user, newPasswordInfo).map {
               case Some(u) =>
-                env.mailer.sendPasswordChangedNotice(u)(request, userLang)
+                env.mailer.sendPasswordChangedNotice(u)(request, request.messages)
                 val result = Redirect(onHandlePasswordChangeGoTo).flashing(Success -> Messages(OkMessage))
                 Events.fire(PasswordChangeEvent(request.user)).map(result.withSession).getOrElse(result)
               case None =>
                 Redirect(onHandlePasswordChangeGoTo).flashing(Error -> Messages("securesocial.password.error"))
             }
-          }
-        )
+          })
       }
     }
   }

@@ -17,9 +17,10 @@
 package securesocial.core.authenticator
 
 import org.joda.time.DateTime
-import scala.annotation.meta.getter
-import scala.concurrent.{ ExecutionContext, Future }
 import play.api.mvc.Result
+
+import scala.annotation.meta.getter
+import scala.concurrent.Future
 
 /**
  * Base trait for the Cookie and Http Header based authenticators
@@ -36,6 +37,8 @@ trait StoreBackedAuthenticator[U, T <: Authenticator[U]] extends Authenticator[U
 
   @transient
   implicit val executionContext = store.executionContext
+
+  val cookieAuthenticatorConfig: CookieAuthenticatorConfig
 
   /**
    * The time an authenticator is allowed to live in the store
@@ -100,7 +103,7 @@ trait StoreBackedAuthenticator[U, T <: Authenticator[U]] extends Authenticator[U
    *
    * @return true if the authenticator timed out, false otherwise.
    */
-  def timedOut: Boolean = lastUsed.plusMinutes(CookieAuthenticator.idleTimeout).isBeforeNow
+  def timedOut: Boolean = lastUsed.plusMinutes(cookieAuthenticatorConfig.idleTimeout).isBeforeNow
 
   /**
    * Checks if the authenticator is valid.  For this implementation it means that the

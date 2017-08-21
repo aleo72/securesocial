@@ -16,8 +16,9 @@
  */
 package securesocial.core
 
-import play.api.mvc.{ Result, AnyContent, Request }
-import play.api.Play
+import play.api.mvc.{ AnyContent, Request, Result }
+import play.api.{ Configuration, Environment, Mode, Play }
+
 import concurrent.Future
 
 /**
@@ -56,15 +57,13 @@ object IdentityProvider {
   val SessionId = "sid"
 
   // todo: do I want this here?
-  val sslEnabled: Boolean = {
-    import Play.current
-    val result = current.configuration.getBoolean("securesocial.ssl").getOrElse(false)
-    if (!result && Play.isProd) {
+  def sslEnabled(env: Environment, configuration: Configuration): Boolean = {
+    val result = configuration.getBoolean("securesocial.ssl").getOrElse(false)
+    if (!result && env.mode == Mode.Prod) {
       logger.warn(
         "[securesocial] IMPORTANT: Play is running in production mode but you did not turn SSL on for SecureSocial." +
           "Not using SSL can make it really easy for an attacker to steal your users' credentials and/or the " +
-          "authenticator cookie and gain access to the system."
-      )
+          "authenticator cookie and gain access to the system.")
     }
     result
   }

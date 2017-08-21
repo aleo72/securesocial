@@ -19,10 +19,10 @@ package securesocial.controllers
 import javax.inject.Inject
 
 import play.api.Configuration
-import play.api.i18n.{ I18nSupport, Messages, MessagesApi }
+import play.api.i18n.{ I18nSupport, Messages }
 import play.api.mvc._
 import securesocial.core._
-import securesocial.core.authenticator.CookieAuthenticator
+import securesocial.core.authenticator.CookieAuthenticatorConfig
 import securesocial.core.services.SaveMode
 import securesocial.core.utils._
 
@@ -31,8 +31,9 @@ import scala.concurrent.Future
 /**
  * A default controller that uses the BasicProfile as the user type
  */
-class ProviderController @Inject() (override implicit val env: RuntimeEnvironment)
-  extends BaseProviderController
+class ProviderController @Inject() (
+  override implicit val env: RuntimeEnvironment,
+  override val cookieAuthenticatorConfig: CookieAuthenticatorConfig) extends BaseProviderController
 
 /**
  * A trait that provides the means to authenticate users for web applications
@@ -43,7 +44,8 @@ trait BaseProviderController extends SecureSocial with I18nSupport {
   val logger = play.api.Logger(this.getClass.getName)
 
   val configuration: Configuration = env.configuration
-  implicit val messagesApi: MessagesApi = env.messagesApi
+
+  val cookieAuthenticatorConfig: CookieAuthenticatorConfig
 
   /**
    * The authentication entry point for GET requests
@@ -79,7 +81,7 @@ trait BaseProviderController extends SecureSocial with I18nSupport {
   private def builder() = {
 
     //todo: this should be configurable maybe
-    env.authenticatorService.find(CookieAuthenticator.Id).getOrElse {
+    env.authenticatorService.find(cookieAuthenticatorConfig.Id).getOrElse {
       logger.error(s"[securesocial] missing CookieAuthenticatorBuilder")
       throw new AuthenticationException()
     }
@@ -176,8 +178,7 @@ object ProviderControllerHelper {
    * @return
    */
   def landingUrl(configuration: Configuration) = configuration.getString(onLoginGoTo).getOrElse(
-    configuration.getString(ApplicationContext).getOrElse(Root)
-  )
+    configuration.getString(ApplicationContext).getOrElse(Root))
 
   /**
    * Returns the url that the user should be redirected to after login

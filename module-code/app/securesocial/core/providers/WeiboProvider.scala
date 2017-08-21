@@ -16,11 +16,11 @@
  */
 package securesocial.core.providers
 
-import play.api.libs.ws.{ WS, WSResponse }
+import play.api.libs.ws.{ WSClient, WSResponse }
 import securesocial.core._
 import securesocial.core.services.{ CacheService, RoutesService }
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 
 /**
  * A Weibo provider
@@ -29,9 +29,8 @@ import scala.concurrent.{ ExecutionContext, Future }
 class WeiboProvider(
   routesService: RoutesService,
   cacheService: CacheService,
-  client: OAuth2Client
-)
-    extends OAuth2Provider(routesService, client, cacheService) {
+  client: OAuth2Client, ws: WSClient)
+  extends OAuth2Provider(routesService, client, cacheService) {
   val GetAuthenticatedUser = "https://api.weibo.com/2/users/show.json?uid=%s&access_token=%s"
   val AccessToken = "access_token"
   val Message = "error"
@@ -59,8 +58,7 @@ class WeiboProvider(
       (json \ OAuth2Constants.AccessToken).as[String],
       (json \ UId).asOpt[String],
       (json \ OAuth2Constants.ExpiresIn).asOpt[Int],
-      (json \ OAuth2Constants.RefreshToken).asOpt[String]
-    )
+      (json \ OAuth2Constants.RefreshToken).asOpt[String])
   }
 
   /**
@@ -99,8 +97,7 @@ class WeiboProvider(
   }
 
   def getEmail(accessToken: String): Future[Option[String]] = {
-    import play.api.Play.current
-    WS.url(GetUserEmail.format(accessToken)).get().map { response =>
+    ws.url(GetUserEmail.format(accessToken)).get().map { response =>
       val me = response.json
       (me \ Message).asOpt[String] match {
         case Some(msg) =>

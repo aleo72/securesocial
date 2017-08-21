@@ -20,12 +20,10 @@ import javax.inject.Inject
 
 import org.joda.time.DateTime
 import securesocial.core._
-import play.api.mvc.Action
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 import securesocial.core.SignUpEvent
 import securesocial.core.AuthenticationResult.Authenticated
 import securesocial.core.LoginEvent
-import securesocial.core.BasicProfile
 import securesocial.core.services.SaveMode
 
 /**

@@ -1,4 +1,5 @@
 import play.sbt.PlayImport.PlayKeys._
+import play.sbt.PlayImport.{cacheApi, ehcache, guice}
 
 name := "SecureSocial"
 
@@ -9,15 +10,17 @@ scalaVersion := Common.scalaVersion
 //PlayKeys.generateRefReverseRouter := false
 
 libraryDependencies ++= Seq(
-  cache,
-  ws,
+  guice,
+  cacheApi,
+  ehcache,
   filters,
-  specs2 % "test",
-  "com.typesafe.play" %% "play-mailer" % "5.0.0",
+  ws,
+  "org.scalatestplus.play" %% "scalatestplus-play" % "3.0.0" % Test,
+  "com.typesafe.play" %% "play-mailer" % "6.0.0",
   "org.mindrot" % "jbcrypt" % "0.3m"
 )
 
-scalariformSettings
+//scalariformSettings
 
 resolvers ++= Seq(
   Resolver.typesafeRepo("releases")

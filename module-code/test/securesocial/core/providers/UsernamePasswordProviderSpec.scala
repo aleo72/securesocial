@@ -86,13 +86,12 @@ class UsernamePasswordProviderSpec extends PlaySpecification with Mockito {
       authMethod = upp.authMethod,
       oAuth1Info = None,
       oAuth2Info = None,
-      passwordInfo = Some(PasswordInfo("bcrypt", user.hash))
-    )
+      passwordInfo = Some(PasswordInfo("bcrypt", user.hash)))
   }
 
   case class User(
-      email: String,
-      password: String) {
+    email: String,
+    password: String) {
     import org.mindrot.jbcrypt.BCrypt
     val hash = BCrypt.hashpw(password, BCrypt.gensalt(12))
   }

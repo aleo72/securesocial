@@ -16,8 +16,10 @@
  */
 package securesocial.core.authenticator
 
+import javax.inject.Inject
+
 import org.joda.time.DateTime
-import play.api.Play
+import play.api.Configuration
 import play.api.mvc.{ Result, _ }
 
 import scala.concurrent.Future
@@ -41,11 +43,11 @@ import scala.concurrent.Future
 case class HttpHeaderAuthenticator[U](id: String, user: U, expirationDate: DateTime,
   lastUsed: DateTime,
   creationDate: DateTime,
-  @transient store: AuthenticatorStore[HttpHeaderAuthenticator[U]])
-    extends StoreBackedAuthenticator[U, HttpHeaderAuthenticator[U]] {
+  @transient store: AuthenticatorStore[HttpHeaderAuthenticator[U]],
+  httpHeaderAuthenticatorConfig: HttpHeaderAuthenticatorConfig) extends StoreBackedAuthenticator[U, HttpHeaderAuthenticator[U]] {
 
-  override val idleTimeoutInMinutes = HttpHeaderAuthenticator.idleTimeout
-  override val absoluteTimeoutInSeconds = HttpHeaderAuthenticator.absoluteTimeoutInSeconds
+  override val idleTimeoutInMinutes = httpHeaderAuthenticatorConfig.idleTimeout
+  override val absoluteTimeoutInSeconds = httpHeaderAuthenticatorConfig.absoluteTimeoutInSeconds
   /**
    * Returns a copy of this authenticator with the given last used time
    *
@@ -80,12 +82,12 @@ case class HttpHeaderAuthenticator[U](id: String, user: U, expirationDate: DateT
  * @param generator a session id generator
  * @tparam U the user object type
  */
-class HttpHeaderAuthenticatorBuilder[U](store: AuthenticatorStore[HttpHeaderAuthenticator[U]], generator: IdGenerator)
-    extends AuthenticatorBuilder[U] {
+class HttpHeaderAuthenticatorBuilder[U](store: AuthenticatorStore[HttpHeaderAuthenticator[U]], generator: IdGenerator, httpHeaderAuthenticatorConfig: HttpHeaderAuthenticatorConfig)
+  extends AuthenticatorBuilder[U] {
 
   import store.executionContext
 
-  val id = HttpHeaderAuthenticator.Id
+  val id = httpHeaderAuthenticatorConfig.Id
 
   /**
    * Creates an instance of a HttpHeaderAuthenticator from the http request
@@ -94,7 +96,7 @@ class HttpHeaderAuthenticatorBuilder[U](store: AuthenticatorStore[HttpHeaderAuth
    * @return an optional HttpHeaderAuthenticator instance.
    */
   override def fromRequest(request: RequestHeader): Future[Option[HttpHeaderAuthenticator[U]]] = {
-    request.headers.get(HttpHeaderAuthenticator.headerName) match {
+    request.headers.get(httpHeaderAuthenticatorConfig.headerName) match {
       case Some(value) => store.find(value).map { retrieved =>
         retrieved.map { _.copy(store = store) }
       }
@@ -112,15 +114,14 @@ class HttpHeaderAuthenticatorBuilder[U](store: AuthenticatorStore[HttpHeaderAuth
     generator.generate.flatMap {
       id =>
         val now = DateTime.now()
-        val expirationDate = now.plusMinutes(HttpHeaderAuthenticator.absoluteTimeout)
-        val authenticator = HttpHeaderAuthenticator(id, user, expirationDate, now, now, store)
-        store.save(authenticator, HttpHeaderAuthenticator.absoluteTimeoutInSeconds)
+        val expirationDate = now.plusMinutes(httpHeaderAuthenticatorConfig.absoluteTimeout)
+        val authenticator = HttpHeaderAuthenticator(id, user, expirationDate, now, now, store, httpHeaderAuthenticatorConfig)
+        store.save(authenticator, httpHeaderAuthenticatorConfig.absoluteTimeoutInSeconds)
     }
   }
 }
 
-object HttpHeaderAuthenticator {
-  import play.api.Play.current
+class HttpHeaderAuthenticatorConfig @Inject() (configuration: Configuration, cookieAuthenticatorConfig: CookieAuthenticatorConfig) {
   // todo: create settings object
 
   val Id = "token"
@@ -129,9 +130,9 @@ object HttpHeaderAuthenticator {
   // default values
   val DefaultHeaderName = "X-Auth-Token"
 
-  lazy val headerName = Play.application.configuration.getString(HeaderNameKey).getOrElse(DefaultHeaderName)
+  lazy val headerName = configuration.getOptional[String](HeaderNameKey).getOrElse(DefaultHeaderName)
   // using the same properties than the CookieBased authenticator for now.
-  lazy val idleTimeout = CookieAuthenticator.idleTimeout
-  lazy val absoluteTimeout = CookieAuthenticator.absoluteTimeout
-  lazy val absoluteTimeoutInSeconds = CookieAuthenticator.absoluteTimeoutInSeconds
+  lazy val idleTimeout = cookieAuthenticatorConfig.idleTimeout
+  lazy val absoluteTimeout = cookieAuthenticatorConfig.absoluteTimeout
+  lazy val absoluteTimeoutInSeconds = cookieAuthenticatorConfig.absoluteTimeoutInSeconds
 }

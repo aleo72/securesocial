@@ -44,7 +44,7 @@ trait OAuth2Client {
 object OAuth2Client {
 
   class Default(val httpService: HttpService, val settings: OAuth2Settings)(implicit val executionContext: ExecutionContext)
-      extends OAuth2Client {
+    extends OAuth2Client {
 
     override def exchangeCodeForToken(code: String, callBackUrl: String, builder: OAuth2InfoBuilder): Future[OAuth2Info] = {
       val params = Map(
@@ -52,8 +52,7 @@ object OAuth2Client {
         OAuth2Constants.ClientSecret -> Seq(settings.clientSecret),
         OAuth2Constants.GrantType -> Seq(OAuth2Constants.AuthorizationCode),
         OAuth2Constants.Code -> Seq(code),
-        OAuth2Constants.RedirectUri -> Seq(callBackUrl)
-      ) ++ settings.accessTokenUrlParams.mapValues(Seq(_))
+        OAuth2Constants.RedirectUri -> Seq(callBackUrl)) ++ settings.accessTokenUrlParams.mapValues(Seq(_))
       httpService.url(settings.accessTokenUrl).post(params).map(builder)
     }
 
@@ -67,9 +66,8 @@ object OAuth2Client {
 abstract class OAuth2Provider(
   routesService: RoutesService,
   client: OAuth2Client,
-  cacheService: CacheService
-)
-    extends IdentityProvider with ApiSupport {
+  cacheService: CacheService)
+  extends IdentityProvider with ApiSupport {
 
   protected implicit val executionContext: ExecutionContext = client.executionContext
   protected val logger = play.api.Logger(this.getClass.getName)
@@ -94,8 +92,7 @@ abstract class OAuth2Provider(
       (json \ OAuth2Constants.AccessToken).as[String],
       (json \ OAuth2Constants.TokenType).asOpt[String],
       (json \ OAuth2Constants.ExpiresIn).asOpt[Int],
-      (json \ OAuth2Constants.RefreshToken).asOpt[String]
-    )
+      (json \ OAuth2Constants.RefreshToken).asOpt[String])
   }
 
   private[this] def validateOauthState(request: Request[AnyContent]): Future[Boolean] = {
@@ -146,8 +143,7 @@ abstract class OAuth2Provider(
                 (OAuth2Constants.ClientId, settings.clientId),
                 (OAuth2Constants.RedirectUri, routesService.authenticationUrl(id)),
                 (OAuth2Constants.ResponseType, OAuth2Constants.Code),
-                (OAuth2Constants.State, state)
-              )
+                (OAuth2Constants.State, state))
               settings.scope.foreach(s => {
                 params = (OAuth2Constants.Scope, s) :: params
               })
