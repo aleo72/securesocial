@@ -18,8 +18,6 @@ package securesocial.core.services
 
 import play.api.libs.ws.WSClient
 
-import scala.concurrent.ExecutionContext
-
 /**
  * A mockable interface for the http client
  */

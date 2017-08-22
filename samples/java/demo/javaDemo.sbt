@@ -6,7 +6,7 @@ version := Common.version
 
 scalaVersion := Common.scalaVersion
 
-//scalariformSettings
+scalariformSettings(true)
 
 libraryDependencies ++= Seq("ws.securesocial" %% "securesocial" % version.value, javaCore)
 

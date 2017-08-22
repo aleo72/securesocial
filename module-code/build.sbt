@@ -20,7 +20,7 @@ libraryDependencies ++= Seq(
   "org.mindrot" % "jbcrypt" % "0.3m"
 )
 
-//scalariformSettings
+scalariformSettings(true)
 
 resolvers ++= Seq(
   Resolver.typesafeRepo("releases")

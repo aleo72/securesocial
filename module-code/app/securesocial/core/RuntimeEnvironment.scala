@@ -62,6 +62,9 @@ trait RuntimeEnvironment {
 
   val cacheApi: AsyncCacheApi
 
+  def cookieAuthenticatorConfig = new CookieAuthenticatorConfig(configuration, env)
+  def httpHeaderAuthenticatorConfig = new HttpHeaderAuthenticatorConfig(configuration, cookieAuthenticatorConfig)
+
 }
 
 object RuntimeEnvironment {
@@ -71,7 +74,7 @@ object RuntimeEnvironment {
    * You can start your app with with by only adding a userService to handle users.
    */
   abstract class Default extends RuntimeEnvironment {
-    override lazy val routes: RoutesService = new RoutesService.Default(configuration)
+    override lazy val routes: RoutesService = new RoutesService.Default(env, configuration)
 
     override lazy val viewTemplates: ViewTemplates = new ViewTemplates.Default(this)(configuration)
     override lazy val mailTemplates: MailTemplates = new MailTemplates.Default(this)
@@ -84,11 +87,11 @@ object RuntimeEnvironment {
     override lazy val httpService: HttpService = new HttpService.Default(ws)
     override lazy val cacheService: CacheService = new CacheService.Default(executionContext, cacheApi)
     override lazy val avatarService: Option[AvatarService] = Some(new AvatarService.Default(httpService))
-    override lazy val idGenerator: IdGenerator = new IdGenerator.Default()
+    override lazy val idGenerator: IdGenerator = new IdGenerator.Default(configuration)
 
     override lazy val authenticatorService = new AuthenticatorService(
-      new CookieAuthenticatorBuilder[U](new AuthenticatorStore.Default(cacheService), idGenerator, new CookieAuthenticatorConfig(configuration, env)),
-      new HttpHeaderAuthenticatorBuilder[U](new AuthenticatorStore.Default(cacheService), idGenerator, new HttpHeaderAuthenticatorConfig(configuration, new CookieAuthenticatorConfig(configuration, env))))
+      new CookieAuthenticatorBuilder[U](new AuthenticatorStore.Default(cacheService), idGenerator, cookieAuthenticatorConfig),
+      new HttpHeaderAuthenticatorBuilder[U](new AuthenticatorStore.Default(cacheService), idGenerator, httpHeaderAuthenticatorConfig, cookieAuthenticatorConfig))
 
     override lazy val eventListeners: Seq[EventListener] = Seq()
     override implicit def executionContext: ExecutionContext = PlayExecution.defaultContext

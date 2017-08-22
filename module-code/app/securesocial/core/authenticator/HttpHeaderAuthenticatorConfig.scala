@@ -44,7 +44,8 @@ case class HttpHeaderAuthenticator[U](id: String, user: U, expirationDate: DateT
   lastUsed: DateTime,
   creationDate: DateTime,
   @transient store: AuthenticatorStore[HttpHeaderAuthenticator[U]],
-  httpHeaderAuthenticatorConfig: HttpHeaderAuthenticatorConfig) extends StoreBackedAuthenticator[U, HttpHeaderAuthenticator[U]] {
+  @transient httpHeaderAuthenticatorConfig: HttpHeaderAuthenticatorConfig,
+  @transient cookieAuthenticatorConfig: CookieAuthenticatorConfig) extends StoreBackedAuthenticator[U, HttpHeaderAuthenticator[U]] {
 
   override val idleTimeoutInMinutes = httpHeaderAuthenticatorConfig.idleTimeout
   override val absoluteTimeoutInSeconds = httpHeaderAuthenticatorConfig.absoluteTimeoutInSeconds
@@ -82,8 +83,11 @@ case class HttpHeaderAuthenticator[U](id: String, user: U, expirationDate: DateT
  * @param generator a session id generator
  * @tparam U the user object type
  */
-class HttpHeaderAuthenticatorBuilder[U](store: AuthenticatorStore[HttpHeaderAuthenticator[U]], generator: IdGenerator, httpHeaderAuthenticatorConfig: HttpHeaderAuthenticatorConfig)
-  extends AuthenticatorBuilder[U] {
+class HttpHeaderAuthenticatorBuilder[U](
+  store: AuthenticatorStore[HttpHeaderAuthenticator[U]],
+  generator: IdGenerator,
+  httpHeaderAuthenticatorConfig: HttpHeaderAuthenticatorConfig,
+  cookieAuthenticatorConfig: CookieAuthenticatorConfig) extends AuthenticatorBuilder[U] {
 
   import store.executionContext
 
@@ -115,7 +119,7 @@ class HttpHeaderAuthenticatorBuilder[U](store: AuthenticatorStore[HttpHeaderAuth
       id =>
         val now = DateTime.now()
         val expirationDate = now.plusMinutes(httpHeaderAuthenticatorConfig.absoluteTimeout)
-        val authenticator = HttpHeaderAuthenticator(id, user, expirationDate, now, now, store, httpHeaderAuthenticatorConfig)
+        val authenticator = HttpHeaderAuthenticator(id, user, expirationDate, now, now, store, httpHeaderAuthenticatorConfig, cookieAuthenticatorConfig)
         store.save(authenticator, httpHeaderAuthenticatorConfig.absoluteTimeoutInSeconds)
     }
   }

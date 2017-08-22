@@ -20,7 +20,7 @@ import akka.actor.ActorSystem
 import play.api.Configuration
 import play.api.i18n.Messages
 import play.api.mvc.RequestHeader
-import play.twirl.api.{Html, Txt}
+import play.twirl.api.{ Html, Txt }
 import securesocial.controllers.MailTemplates
 import securesocial.core.BasicProfile
 
